@@ -1,0 +1,2 @@
+source /workspaces/SASE_NEW/build_codex/bootloader/gdbinit/symbols
+source /workspaces/SASE_NEW/build_codex/bootloader/gdbinit/connect

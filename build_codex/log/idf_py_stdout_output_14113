@@ -1,0 +1,19 @@
+Command: ninja all
+[1/9] Performing build step for 'bootloader'
+[1/1] cd /workspaces/SASE_NEW/build_codex/bootloader && /opt/esp/python_env/idf6.1_py3.12_env/bin/python /opt/esp/idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /workspaces/SASE_NEW/build_codex/bootloader/bootloader.bin
+Bootloader binary size 0x5280 bytes. 0x2d80 bytes (36%) free.
+[2/9] No install step for 'bootloader'
+[3/9] Completed 'bootloader'
+[4/9] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/bluetooth_link.cpp.obj
+[5/9] Linking C static library esp-idf/main/libmain.a
+[6/9] Generating esp-idf/esp_system/ld/sections.ld
+Skipping linker script generation, section names unchanged
+[7/9] Linking CXX executable SASE_NEW.elf
+[8/9] Generating binary image from built executable
+esptool v5.3.dev2
+Creating ESP32-S3 image...
+Merged 2 ELF sections.
+Successfully created ESP32-S3 image.
+Generated /workspaces/SASE_NEW/build_codex/SASE_NEW.bin
+[9/9] cd /workspaces/SASE_NEW/build_codex && /opt/esp/python_env/idf6.1_py3.12_env/bin/python /opt/esp/idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /workspaces/SASE_NEW/build_codex/partition_table/partition-table.bin /workspaces/SASE_NEW/build_codex/SASE_NEW.bin
+SASE_NEW.bin binary size 0x5d910 bytes. Smallest app partition is 0x100000 bytes. 0xa26f0 bytes (63%) free.
