@@ -11,6 +11,8 @@
   "clangd.arguments": [
     "--background-index",
     "--query-driver=**",
-    "--compile-commands-dir=c:\\Users\\catsa\\Documents\\SASE\\SASE_NEW\\build"
-  ]
+    "--compile-commands-dir=${workspaceFolder}\\build"
+  ],
+  "idf.portWin": "COM3",
+  "idf.flashType": "UART"
 }

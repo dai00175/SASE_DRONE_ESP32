@@ -12,7 +12,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 6.1.0
+    version: 5.5.4
   k0i05/esp_ahtxx:
     component_hash: 34ecd4cc05b54a8ee64a813f80cf2b8efea6f22ecdbf7244640fc29627416fed
     dependencies:
@@ -58,4 +58,4 @@ direct_dependencies:
 - k0i05/esp_ens160
 manifest_hash: fd8dfbc39a06bc0f7c74b87095399eed14f214129e02992c7a6216c033fbaef6
 target: esp32s3
-version: 3.0.0
+version: 2.0.0
