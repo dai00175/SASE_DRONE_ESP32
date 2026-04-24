@@ -19,6 +19,10 @@ struct IntegratorState
 
 Tuning g_tuning = {};
 IntegratorState g_integrators = {};
+constexpr int kMotor1CompensationUs = 300;
+constexpr int kMotor2CompensationUs = 200;
+constexpr int kMotor3CompensationUs = -300;
+constexpr int kMotor4CompensationUs = -300;
 
 float compute_axis(float setpoint_deg, float measured_deg, float gyro_dps, int throttle_us, float dt_s,
                    const AxisGains &gains, float *integral)
@@ -75,11 +79,20 @@ Output compute(const control_setpoint_t &setpoint, const imu_snapshot_t &imu_sna
 
 std::array<int32_t, 4> mix_outputs(int throttle_us, const Output &pid_output)
 {
+    const int motor1_compensation_us = throttle_us > kBoardConfig.pwm_min_us ? kMotor1CompensationUs : 0;
+    const int motor2_compensation_us = throttle_us > kBoardConfig.pwm_min_us ? kMotor2CompensationUs : 0;
+    const int motor3_compensation_us = throttle_us > kBoardConfig.pwm_min_us ? kMotor3CompensationUs : 0;
+    const int motor4_compensation_us = throttle_us > kBoardConfig.pwm_min_us ? kMotor4CompensationUs : 0;
+
     return {
-        static_cast<int32_t>(std::lround(throttle_us + pid_output.roll - pid_output.pitch + pid_output.yaw)),
-        static_cast<int32_t>(std::lround(throttle_us + pid_output.roll + pid_output.pitch - pid_output.yaw)),
-        static_cast<int32_t>(std::lround(throttle_us - pid_output.roll + pid_output.pitch + pid_output.yaw)),
-        static_cast<int32_t>(std::lround(throttle_us - pid_output.roll - pid_output.pitch - pid_output.yaw)),
+        static_cast<int32_t>(
+            std::lround(throttle_us + pid_output.roll - pid_output.pitch + pid_output.yaw + motor1_compensation_us)),
+        static_cast<int32_t>(
+            std::lround(throttle_us + pid_output.roll + pid_output.pitch - pid_output.yaw + motor2_compensation_us)),
+        static_cast<int32_t>(
+            std::lround(throttle_us - pid_output.roll + pid_output.pitch + pid_output.yaw + motor3_compensation_us)),
+        static_cast<int32_t>(
+            std::lround(throttle_us - pid_output.roll - pid_output.pitch - pid_output.yaw + motor4_compensation_us)),
     };
 }
 

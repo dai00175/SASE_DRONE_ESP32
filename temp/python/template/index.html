@@ -125,6 +125,11 @@
             color: #ffffff;
         }
 
+        .actions .btn-stop {
+            background-color: #ff1744;
+            color: #ffffff;
+        }
+
         .status {
             margin-top: 1.5rem;
             font-size: 0.85rem;
@@ -283,6 +288,7 @@
                 <div class="actions">
                     <button class="btn" onclick="sendTakeoff()">Takeoff</button>
                     <button class="btn btn-land" onclick="sendCommand('land', 0.0)">Land</button>
+                    <button class="btn btn-stop" onclick="sendStop()">Stop</button>
                 </div>
 
                 <div class="status" id="status-msg">Idle.</div>
@@ -357,6 +363,11 @@
             const currentValue = throttleInput ? Number(throttleInput.value) : THROTTLE_MIN;
             const clampedValue = updateThrottleUI(Math.max(currentValue, TAKEOFF_THROTTLE_MIN));
             await sendCommand('takeoff', clampedValue);
+        }
+
+        async function sendStop() {
+            updateThrottleUI(THROTTLE_MIN);
+            await sendCommand('stop', 0.0);
         }
 
         function renderThrottleTicks() {

@@ -29,6 +29,8 @@ struct control_setpoint_t
     DroneState state = DroneState::IDLE;
     int mission_id = 0;
     int64_t command_timestamp_us = 0;
+    int landing_start_throttle_us = kBoardConfig.pwm_min_us;
+    int64_t landing_start_timestamp_us = 0;
 };
 
 struct aux_sensor_snapshot_t
@@ -83,6 +85,7 @@ enum class CommandAction : uint8_t
     NONE = 0,
     TAKEOFF,
     LAND,
+    STOP,
     CANCEL,
     PROGRAM_CONTROL,
     USER_CONTROL,

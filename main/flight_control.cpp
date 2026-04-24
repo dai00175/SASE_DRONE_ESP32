@@ -16,6 +16,8 @@ namespace flight_control
 namespace
 {
 
+constexpr int64_t kLandingDurationUs = 5000000;
+
 gptimer_handle_t g_flight_timer = nullptr;
 
 std::array<int32_t, 4> motors_off_outputs()
@@ -35,6 +37,36 @@ void apply_idle_setpoint(control_setpoint_t &setpoint)
     setpoint.roll_deg = 0.0f;
     setpoint.pitch_deg = 0.0f;
     setpoint.yaw_deg = 0.0f;
+    setpoint.landing_start_throttle_us = kBoardConfig.pwm_min_us;
+    setpoint.landing_start_timestamp_us = 0;
+}
+
+void apply_landing_setpoint(control_setpoint_t &setpoint, int64_t now_us)
+{
+    setpoint.state = DroneState::LANDING;
+    setpoint.throttle_us = app::clamp_value(setpoint.throttle_us, kBoardConfig.pwm_min_us, kBoardConfig.pwm_max_us);
+    setpoint.landing_start_throttle_us = setpoint.throttle_us;
+    setpoint.landing_start_timestamp_us = now_us;
+    setpoint.roll_deg = 0.0f;
+    setpoint.pitch_deg = 0.0f;
+    setpoint.yaw_deg = 0.0f;
+    setpoint.command_timestamp_us = now_us;
+}
+
+int landing_throttle_us(const control_setpoint_t &setpoint, int64_t now_us)
+{
+    const int start_throttle_us =
+        app::clamp_value(setpoint.landing_start_throttle_us, kBoardConfig.pwm_min_us, kBoardConfig.pwm_max_us);
+    if (start_throttle_us <= kBoardConfig.pwm_min_us)
+    {
+        return kBoardConfig.pwm_min_us;
+    }
+
+    const int64_t elapsed_us =
+        app::clamp_value(now_us - setpoint.landing_start_timestamp_us, int64_t{0}, kLandingDurationUs);
+    const int throttle_range_us = start_throttle_us - kBoardConfig.pwm_min_us;
+    return start_throttle_us -
+           static_cast<int>((static_cast<int64_t>(throttle_range_us) * elapsed_us) / kLandingDurationUs);
 }
 
 bool IRAM_ATTR flight_timer_alarm_cb(gptimer_handle_t, const gptimer_alarm_event_data_t *, void *user_ctx)
@@ -47,6 +79,8 @@ bool IRAM_ATTR flight_timer_alarm_cb(gptimer_handle_t, const gptimer_alarm_event
 void process_command(const command_message_t &command)
 {
     control_setpoint_t setpoint = app::snapshot_control_setpoint();
+    const int64_t now_us = esp_timer_get_time();
+    bool landing_requested = false;
     if (command.mission_id != 0)
     {
         setpoint.mission_id = command.mission_id;
@@ -58,7 +92,11 @@ void process_command(const command_message_t &command)
         setpoint.state = DroneState::TAKEOFF;
         break;
     case CommandAction::LAND:
+        landing_requested = true;
+        break;
+    case CommandAction::STOP:
         apply_idle_setpoint(setpoint);
+        pid::reset();
         break;
     case CommandAction::CANCEL:
         setpoint.state = DroneState::USERCNTRL;
@@ -91,13 +129,18 @@ void process_command(const command_message_t &command)
         setpoint.yaw_deg = command.yaw_deg;
     }
 
+    if (landing_requested)
+    {
+        apply_landing_setpoint(setpoint, now_us);
+    }
+
     if (setpoint.state == DroneState::IDLE)
     {
         apply_idle_setpoint(setpoint);
         pid::reset();
     }
 
-    setpoint.command_timestamp_us = esp_timer_get_time();
+    setpoint.command_timestamp_us = now_us;
     app::update_control_setpoint(setpoint);
 }
 
@@ -125,6 +168,22 @@ void flight_task(void *)
             motors::apply_outputs(motors_off_outputs());
             app::update_loop_runtime(loop_period_us, 0.0f, 0.0f, 0.0f);
             continue;
+        }
+
+        if (setpoint.state == DroneState::LANDING)
+        {
+            setpoint.throttle_us = landing_throttle_us(setpoint, now_us);
+            if (setpoint.throttle_us <= kBoardConfig.pwm_min_us)
+            {
+                apply_idle_setpoint(setpoint);
+                setpoint.command_timestamp_us = now_us;
+                app::update_control_setpoint(setpoint);
+                pid::reset();
+                motors::apply_outputs(motors_off_outputs());
+                app::update_loop_runtime(loop_period_us, 0.0f, 0.0f, 0.0f);
+                continue;
+            }
+            app::update_control_setpoint(setpoint);
         }
 
         const pid::Output pid_output = pid::compute(setpoint, imu_snapshot, dt);

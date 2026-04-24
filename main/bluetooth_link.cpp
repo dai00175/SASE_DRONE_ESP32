@@ -130,6 +130,10 @@ CommandAction parse_action(const char *action)
     {
         return CommandAction::LAND;
     }
+    if (std::strcmp(action, "stop") == 0)
+    {
+        return CommandAction::STOP;
+    }
     if (std::strcmp(action, "cancel") == 0)
     {
         return CommandAction::CANCEL;
@@ -153,6 +157,8 @@ const char *action_to_string(CommandAction action)
         return "takeoff";
     case CommandAction::LAND:
         return "land";
+    case CommandAction::STOP:
+        return "stop";
     case CommandAction::CANCEL:
         return "cancel";
     case CommandAction::PROGRAM_CONTROL:
@@ -301,6 +307,10 @@ bool process_plaintext_command(const char *message)
     else if (ascii_equals_ignore_case(command_text, "land"))
     {
         command.action = CommandAction::LAND;
+    }
+    else if (ascii_equals_ignore_case(command_text, "stop"))
+    {
+        command.action = CommandAction::STOP;
     }
     else if (ascii_equals_ignore_case(command_text, "cancel"))
     {

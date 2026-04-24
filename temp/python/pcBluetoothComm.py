@@ -170,6 +170,8 @@ def build_drone_command(action: str, value: float) -> dict[str, Any]:
         command["throttle_us"] = throttle_value_to_us(max(float(value), float(TAKEOFF_THROTTLE_MIN)))
     elif action == "land":
         command["action"] = "land"
+    elif action == "stop":
+        command["action"] = "stop"
     elif action == "cancel":
         command["action"] = "cancel"
     elif action == "program_control":
