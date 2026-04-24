@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -62,7 +63,7 @@
             margin-bottom: 0.5rem;
             font-size: 1.5rem;
         }
-        
+
         p {
             color: var(--text-secondary);
             margin-bottom: 2rem;
@@ -103,10 +104,25 @@
             visibility: hidden;
         }
 
-        .btn-up { grid-column: 2; grid-row: 1; }
-        .btn-left { grid-column: 1; grid-row: 2; }
-        .btn-down { grid-column: 2; grid-row: 2; }
-        .btn-right { grid-column: 3; grid-row: 2; }
+        .btn-up {
+            grid-column: 2;
+            grid-row: 1;
+        }
+
+        .btn-left {
+            grid-column: 1;
+            grid-row: 2;
+        }
+
+        .btn-down {
+            grid-column: 2;
+            grid-row: 2;
+        }
+
+        .btn-right {
+            grid-column: 3;
+            grid-row: 2;
+        }
 
         .actions {
             display: flex;
@@ -252,6 +268,24 @@
                 position: static;
                 margin-bottom: 1.5rem;
             }
+
+            .air-quality-panel {
+                position: static;
+                margin-bottom: 1.5rem;
+                width: 100%;
+            }
+        }
+
+        @media (min-width: 800px) {
+            .air-quality-panel {
+                position: absolute;
+                left: 0;
+                bottom: 2rem;
+                top: auto;
+                margin: 0;
+                width: 300px;
+                box-sizing: border-box;
+            }
         }
 
         @media (max-width: 979px) {
@@ -260,14 +294,24 @@
             }
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
     <div class="app-shell">
         <div class="container programs-panel" style="max-width: 300px;">
             <h2 style="margin-top: 0; margin-bottom: 0.5rem; font-size: 1.5rem;">Programs</h2>
             <p>Automated flight sequences</p>
             <div style="display: flex; flex-direction: column; gap: 15px;">
-                <button class="btn" style="background-color: #03dac6; color: #000;" onclick="flySquare()">Square (5s)</button>
+                <button class="btn" style="background-color: #03dac6; color: #000;" onclick="flySquare()">Square
+                    (5s)</button>
+            </div>
+        </div>
+
+        <div class="container air-quality-panel" style="padding: 1.5rem;">
+            <h2 style="margin-top: 0; margin-bottom: 0.5rem; font-size: 1.2rem;">Air Quality</h2>
+            <div style="position: relative; height: 180px; width: 100%;">
+                <canvas id="aqiChart"></canvas>
             </div>
         </div>
 
@@ -278,11 +322,19 @@
 
                 <div class="d-pad">
                     <div class="btn empty"></div>
-                    <button class="btn btn-up" onpointerdown="sendCommand('forward', 2.0)" onpointerup="sendCommand('stop_pitch', 0.0)" onpointerleave="sendCommand('stop_pitch', 0.0)">W</button>
+                    <button class="btn btn-up" onpointerdown="sendCommand('forward', 2.0)"
+                        onpointerup="sendCommand('stop_pitch', 0.0)"
+                        onpointerleave="sendCommand('stop_pitch', 0.0)">W</button>
                     <div class="btn empty"></div>
-                    <button class="btn btn-left" onpointerdown="sendCommand('left', 2.0)" onpointerup="sendCommand('stop_roll', 0.0)" onpointerleave="sendCommand('stop_roll', 0.0)">A</button>
-                    <button class="btn btn-down" onpointerdown="sendCommand('backward', 2.0)" onpointerup="sendCommand('stop_pitch', 0.0)" onpointerleave="sendCommand('stop_pitch', 0.0)">S</button>
-                    <button class="btn btn-right" onpointerdown="sendCommand('right', 2.0)" onpointerup="sendCommand('stop_roll', 0.0)" onpointerleave="sendCommand('stop_roll', 0.0)">D</button>
+                    <button class="btn btn-left" onpointerdown="sendCommand('left', 2.0)"
+                        onpointerup="sendCommand('stop_roll', 0.0)"
+                        onpointerleave="sendCommand('stop_roll', 0.0)">A</button>
+                    <button class="btn btn-down" onpointerdown="sendCommand('backward', 2.0)"
+                        onpointerup="sendCommand('stop_pitch', 0.0)"
+                        onpointerleave="sendCommand('stop_pitch', 0.0)">S</button>
+                    <button class="btn btn-right" onpointerdown="sendCommand('right', 2.0)"
+                        onpointerup="sendCommand('stop_roll', 0.0)"
+                        onpointerleave="sendCommand('stop_roll', 0.0)">D</button>
                 </div>
 
                 <div class="actions">
@@ -295,7 +347,8 @@
             </div>
 
             <div class="throttle-panel">
-                <label class="throttle-label" for="throttle">Throttle (0-1000): <strong id="throttle-val">0</strong></label>
+                <label class="throttle-label" for="throttle">Throttle (0-1000): <strong
+                        id="throttle-val">0</strong></label>
                 <div class="throttle-controls">
                     <button class="btn throttle-arrow" type="button" onclick="adjustThrottle(50)">&#9650;</button>
                     <div class="throttle-scale">
@@ -449,7 +502,7 @@
                 if (response.ok) {
                     const data = await response.json();
                     const statusEl = document.getElementById('status-msg');
-                    
+
                     // Format the telemetry data into a readable string
                     let uiString = `Drone: ${data.status || 'Idle'}`;
                     if (data.serial_port) uiString += ` | Port: ${data.serial_port}`;
@@ -466,7 +519,7 @@
                     if (data.battery) uiString += ` | Battery: ${data.battery}%`;
                     if (data.altitude) uiString += ` | Alt: ${data.altitude}m`;
                     if (data.last_message) uiString += ` | Msg: ${data.last_message}`;
-                    
+
                     // Revert to displaying telemetry after 3 seconds of showing success/error messages
                     if (statusEl.getAttribute('data-temp-msg') !== "true") {
                         statusEl.innerHTML = renderTelemetry(data);
@@ -481,7 +534,7 @@
             statusEl.textContent = `Sending ${action}...`;
             statusEl.style.color = "var(--text-secondary)";
             statusEl.setAttribute('data-temp-msg', "true");
-            
+
             try {
                 const response = await fetch('/api/command', {
                     method: 'POST',
@@ -490,7 +543,7 @@
                 });
 
                 const result = await response.json();
-                
+
                 if (response.ok) {
                     statusEl.textContent = `Success: ${result.message}`;
                     statusEl.style.color = "var(--primary)";
@@ -545,14 +598,107 @@
         // Auto-level pitch/roll back to 0 the moment the user steps off the designated key
         document.addEventListener('keyup', (event) => {
             switch (event.key.toLowerCase()) {
-                case 'w': 
-                case 's': 
+                case 'w':
+                case 's':
                     sendCommand('stop_pitch', 0.0); break;
-                case 'a': 
-                case 'd': 
+                case 'a':
+                case 'd':
                     sendCommand('stop_roll', 0.0); break;
             }
         });
+
+        // --- Mock Air Quality Live Graph ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const ctx = document.getElementById('aqiChart');
+            if (!ctx) return;
+
+            // Initialize chart with empty data arrays (30 points for 30 seconds)
+            const maxDataPoints = 30;
+            const labels = Array.from({ length: maxDataPoints }, () => '');
+            const aqiData = Array.from({ length: maxDataPoints }, () => null);
+            const tvocData = Array.from({ length: maxDataPoints }, () => null);
+
+            const aqiChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'AQI (UBA)',
+                            data: aqiData,
+                            borderColor: '#03dac6',
+                            backgroundColor: 'rgba(3, 218, 198, 0.15)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'TVOC (ppb)',
+                            data: tvocData,
+                            borderColor: '#bb86fc',
+                            backgroundColor: 'rgba(187, 134, 252, 0.15)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 0 // Smooth continuous appearance
+                    },
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            display: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: 'var(--text-secondary)', font: { size: 10 } },
+                            suggestedMin: 0,
+                            suggestedMax: 150
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: 'var(--text)',
+                                font: { family: "'Inter', sans-serif", size: 11 },
+                                boxWidth: 12
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Base mock values
+            let currentAqi = 45;
+            let currentTvoc = 110;
+
+            setInterval(() => {
+                // Random walk noise
+                currentAqi = Math.max(10, currentAqi + (Math.random() - 0.5) * 8);
+                currentTvoc = Math.max(20, currentTvoc + (Math.random() - 0.5) * 20);
+
+                // Add slight periodic spikes to look like sensor hits
+                if (Math.random() > 0.95) {
+                    currentTvoc += Math.random() * 40;
+                }
+
+                // Push new data and remove oldest
+                aqiChart.data.datasets[0].data.push(currentAqi);
+                aqiChart.data.datasets[0].data.shift();
+
+                aqiChart.data.datasets[1].data.push(currentTvoc);
+                aqiChart.data.datasets[1].data.shift();
+
+                aqiChart.update();
+            }, 1000); // Update every second
+        });
     </script>
 </body>
+
 </html>
