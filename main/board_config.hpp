@@ -75,6 +75,6 @@ inline constexpr BoardConfig kBoardConfig = {
     .flight_loop_period_us = 3333,
     .telemetry_period_ms = 100,
     .serial_log_period_ms = 1000,
-    .bluetooth_timeout_ms = 500,
+    .bluetooth_timeout_ms = 5000,
     .ultrasonic_timeout_us = 30000,
 };

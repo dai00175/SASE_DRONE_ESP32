@@ -1,14 +1,16 @@
 import serial
+import serial.tools.list_ports
 import json
 import time
 import threading
+import os
 from typing import Any
 from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
 
-# Update to your specific Teensy Bluetooth COM port
-PORT = "COM7" 
+# Update to your specific HC-05 Bluetooth SPP COM port
+PORT = os.environ.get("DRONE_BT_PORT", "COM7")
 BAUD = 9600
 PWM_MIN_US = 1000
 PWM_MAX_US = 2000
@@ -18,7 +20,11 @@ UI_THROTTLE_MAX = 1000
 ser = None
 latest_drone_status: dict[str, Any] = {
     "status": "idle",
-    "last_update": None
+    "last_update": None,
+    "serial_port": PORT,
+    "serial_connected": False,
+    "serial_error": None,
+    "available_ports": [],
 }
 
 
@@ -29,6 +35,10 @@ def clamp(value: float, minimum: float, maximum: float) -> float:
 def throttle_value_to_us(value: float) -> int:
     clamped_value = clamp(float(value), 0.0, float(UI_THROTTLE_MAX))
     return int(round(PWM_MIN_US + clamped_value))
+
+
+def list_serial_ports() -> list[str]:
+    return [f"{port.device} - {port.description}" for port in serial.tools.list_ports.comports()]
 
 
 def build_drone_command(action: str, value: float) -> dict[str, Any]:
@@ -93,6 +103,9 @@ def update_status_from_telemetry(data: dict[str, Any]) -> None:
     latest_drone_status["mission_id"] = data.get("mission_id", 0)
     latest_drone_status["last_update"] = time.time()
     latest_drone_status["raw_telemetry"] = data
+    latest_drone_status["serial_connected"] = ser is not None and ser.is_open
+    latest_drone_status["serial_port"] = PORT
+    latest_drone_status["serial_error"] = None
 
     if "pitch_deg" in setpoint:
         latest_drone_status["target_pitch"] = setpoint["pitch_deg"]
@@ -134,6 +147,7 @@ def listen_to_drone():
                             # Try to unpack JSON payload from the drone
                             data = json.loads(line)
                             update_status_from_telemetry(data)
+                            latest_drone_status["serial_last_rx"] = time.time()
                             print(f"[Drone Telemetry]: {data}")
                         except json.JSONDecodeError:
                             # If the drone just sent plain text, save it
@@ -141,18 +155,29 @@ def listen_to_drone():
                             latest_drone_status["last_message"] = line
             except Exception as e:
                 print(f"[Listener Error]: {e}")
+                latest_drone_status["serial_error"] = str(e)
+                latest_drone_status["serial_connected"] = False
         
         # Short sleep to prevent CPU pegging
         time.sleep(0.05)
 
 def init_serial():
     global ser
+    available_ports = list_serial_ports()
+    latest_drone_status["available_ports"] = available_ports
+    latest_drone_status["serial_port"] = PORT
+
     if ser is None or not ser.is_open:
         try:
-            print(f"Connecting to Drone on {PORT}...")
-            ser = serial.Serial(PORT, BAUD, timeout=2)
+            print(f"Available serial ports: {available_ports}")
+            print(f"Connecting to drone on {PORT} at {BAUD} baud...")
+            ser = serial.Serial(PORT, BAUD, timeout=2, write_timeout=2)
+            ser.reset_input_buffer()
+            ser.reset_output_buffer()
             time.sleep(2)  # Wait for connection to stabilize
             print("Connected!")
+            latest_drone_status["serial_connected"] = True
+            latest_drone_status["serial_error"] = None
             
             # Start background listener thread as daemon so it closes when web server closes
             listener = threading.Thread(target=listen_to_drone, daemon=True)
@@ -160,7 +185,10 @@ def init_serial():
             
         except serial.SerialException as e:
             print(f"Serial Error: {e}")
+            print("Hint: on Windows HC-05 usually exposes two COM ports; use the outgoing/client SPP port.")
             ser = None
+            latest_drone_status["serial_connected"] = False
+            latest_drone_status["serial_error"] = str(e)
 
 @app.route('/')
 def index():
@@ -189,10 +217,18 @@ def send_command():
     try:
         command_payload = build_drone_command(action, float(value))
         json_payload = json.dumps(command_payload, separators=(',', ':'))
-        print(f"[Ground -> Drone]: {json_payload}")
+        wire_payload = (json_payload + '\n').encode('utf-8')
+        latest_drone_status["last_command"] = command_payload
+        latest_drone_status["last_command_wire"] = wire_payload.decode('utf-8', errors='ignore')
+        print(f"[Ground -> Drone on {PORT}]: {json_payload}")
+        print(f"[Ground -> Drone bytes]: {wire_payload!r}")
         
         # Send payload + newline over bluetooth
-        ser.write((json_payload + '\n').encode('utf-8'))
+        ser.write(wire_payload)
+        ser.flush()
+        latest_drone_status["last_command_at"] = time.time()
+        latest_drone_status["serial_connected"] = True
+        latest_drone_status["serial_error"] = None
         
         # Revert 'last_message' so the UI displays success and then updates on next ping
         if "last_message" in latest_drone_status:

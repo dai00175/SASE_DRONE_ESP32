@@ -1,6 +1,7 @@
 #include "bluetooth_link.hpp"
 
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -33,6 +34,75 @@ bool try_get_number(const cJSON *object, const char *name, double *value)
     return false;
 }
 
+bool ascii_is_space(char ch)
+{
+    return std::isspace(static_cast<unsigned char>(ch)) != 0;
+}
+
+const char *trim_ascii_whitespace(const char *text)
+{
+    if (text == nullptr)
+    {
+        return nullptr;
+    }
+
+    while (*text != '\0' && ascii_is_space(*text))
+    {
+        ++text;
+    }
+    return text;
+}
+
+void copy_trimmed_ascii_whitespace(const char *source, char *dest, size_t dest_size)
+{
+    if (dest == nullptr || dest_size == 0)
+    {
+        return;
+    }
+
+    dest[0] = '\0';
+    if (source == nullptr)
+    {
+        return;
+    }
+
+    const char *start = trim_ascii_whitespace(source);
+    const char *end = start + std::strlen(start);
+    while (end > start && ascii_is_space(*(end - 1)))
+    {
+        --end;
+    }
+
+    size_t length = static_cast<size_t>(end - start);
+    if (length >= dest_size)
+    {
+        length = dest_size - 1U;
+    }
+
+    std::memcpy(dest, start, length);
+    dest[length] = '\0';
+}
+
+bool ascii_equals_ignore_case(const char *lhs, const char *rhs)
+{
+    if (lhs == nullptr || rhs == nullptr)
+    {
+        return false;
+    }
+
+    while (*lhs != '\0' && *rhs != '\0')
+    {
+        if (std::tolower(static_cast<unsigned char>(*lhs)) != std::tolower(static_cast<unsigned char>(*rhs)))
+        {
+            return false;
+        }
+        ++lhs;
+        ++rhs;
+    }
+
+    return *lhs == '\0' && *rhs == '\0';
+}
+
 CommandAction parse_action(const char *action)
 {
     if (action == nullptr)
@@ -62,6 +132,39 @@ CommandAction parse_action(const char *action)
     return CommandAction::SETPOINT_UPDATE;
 }
 
+const char *action_to_string(CommandAction action)
+{
+    switch (action)
+    {
+    case CommandAction::TAKEOFF:
+        return "takeoff";
+    case CommandAction::LAND:
+        return "land";
+    case CommandAction::CANCEL:
+        return "cancel";
+    case CommandAction::PROGRAM_CONTROL:
+        return "program_control";
+    case CommandAction::USER_CONTROL:
+        return "user_control";
+    case CommandAction::SETPOINT_UPDATE:
+        return "setpoint_update";
+    case CommandAction::NONE:
+    default:
+        return "none";
+    }
+}
+
+void log_enqueued_command(const command_message_t &command)
+{
+    ESP_LOGI(app::kTag,
+             "Bluetooth command accepted: action=%s mission_id=%d throttle=%s%d roll=%s%.2f pitch=%s%.2f yaw=%s%.2f",
+             action_to_string(command.action), command.mission_id, command.has_throttle ? "" : "-",
+             command.has_throttle ? command.throttle_us : 0, command.has_roll ? "" : "-",
+             static_cast<double>(command.has_roll ? command.roll_deg : 0.0f), command.has_pitch ? "" : "-",
+             static_cast<double>(command.has_pitch ? command.pitch_deg : 0.0f), command.has_yaw ? "" : "-",
+             static_cast<double>(command.has_yaw ? command.yaw_deg : 0.0f));
+}
+
 void enqueue_command(const command_message_t &command)
 {
     if (app::command_queue() == nullptr)
@@ -71,16 +174,19 @@ void enqueue_command(const command_message_t &command)
     if (xQueueSend(app::command_queue(), &command, 0) != pdTRUE)
     {
         ESP_LOGW(app::kTag, "Command queue full, dropping command");
+        return;
     }
+
+    log_enqueued_command(command);
 }
 
-void process_command_json(const char *json_message)
+bool process_command_json(const char *json_message)
 {
     cJSON *root = cJSON_Parse(json_message);
     if (root == nullptr)
     {
         ESP_LOGW(app::kTag, "Malformed JSON command");
-        return;
+        return false;
     }
 
     int mission_id = 0;
@@ -93,10 +199,12 @@ void process_command_json(const char *json_message)
     const cJSON *commands = cJSON_GetObjectItemCaseSensitive(root, "commands");
     if (!cJSON_IsArray(commands))
     {
+        ESP_LOGW(app::kTag, "JSON command missing commands array");
         cJSON_Delete(root);
-        return;
+        return false;
     }
 
+    bool enqueued_any = false;
     cJSON *command_node = nullptr;
     cJSON_ArrayForEach(command_node, commands)
     {
@@ -144,9 +252,73 @@ void process_command_json(const char *json_message)
         }
 
         enqueue_command(command);
+        enqueued_any = true;
     }
 
     cJSON_Delete(root);
+    return enqueued_any;
+}
+
+bool process_plaintext_command(const char *message)
+{
+    char command_text[app::kBluetoothLineBufferSize] = {};
+    copy_trimmed_ascii_whitespace(message, command_text, sizeof(command_text));
+    if (command_text[0] == '\0')
+    {
+        return false;
+    }
+
+    command_message_t command = {};
+    if (ascii_equals_ignore_case(command_text, "takeoff"))
+    {
+        command.action = CommandAction::TAKEOFF;
+    }
+    else if (ascii_equals_ignore_case(command_text, "land"))
+    {
+        command.action = CommandAction::LAND;
+    }
+    else if (ascii_equals_ignore_case(command_text, "cancel"))
+    {
+        command.action = CommandAction::CANCEL;
+    }
+    else if (ascii_equals_ignore_case(command_text, "program_control"))
+    {
+        command.action = CommandAction::PROGRAM_CONTROL;
+    }
+    else if (ascii_equals_ignore_case(command_text, "user_control"))
+    {
+        command.action = CommandAction::USER_CONTROL;
+    }
+    else
+    {
+        return false;
+    }
+
+    enqueue_command(command);
+    return true;
+}
+
+void process_command_message(const char *message)
+{
+    const char *trimmed = trim_ascii_whitespace(message);
+    if (trimmed == nullptr || trimmed[0] == '\0')
+    {
+        return;
+    }
+
+    if (trimmed[0] == '{' || trimmed[0] == '[')
+    {
+        if (!process_command_json(trimmed))
+        {
+            ESP_LOGW(app::kTag, "Bluetooth JSON command was not accepted");
+        }
+        return;
+    }
+
+    if (!process_plaintext_command(trimmed))
+    {
+        ESP_LOGW(app::kTag, "Unsupported Bluetooth command format: %s", trimmed);
+    }
 }
 
 void log_bluetooth_connection_established()
@@ -332,7 +504,7 @@ void bluetooth_task(void *)
                 {
                     rx_packets_since_heartbeat++;
                     log_received_packet(line_buffer.data());
-                    process_command_json(line_buffer.data());
+                    process_command_message(line_buffer.data());
                 }
                 line_length = 0;
                 continue;

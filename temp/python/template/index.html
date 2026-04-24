@@ -350,6 +350,10 @@
                     
                     // Format the telemetry data into a readable string
                     let uiString = `Drone: ${data.status || 'Idle'}`;
+                    if (data.serial_port) uiString += ` | Port: ${data.serial_port}`;
+                    if (data.serial_connected !== undefined) uiString += ` | PC Serial: ${data.serial_connected ? 'open' : 'closed'}`;
+                    if (data.bluetooth_connected !== undefined) uiString += ` | Drone BT: ${data.bluetooth_connected ? 'yes' : 'no'}`;
+                    if (data.serial_error) uiString += ` | Serial Error: ${data.serial_error}`;
                     if (data.target_pitch !== undefined) uiString += ` | Cmd Pitch: ${data.target_pitch}°`;
                     if (data.target_roll !== undefined) uiString += ` | Cmd Roll: ${data.target_roll}°`;
                     if (data.pitch !== undefined) uiString += ` | True Pitch: ${parseFloat(data.pitch).toFixed(1)}°`;
