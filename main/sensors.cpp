@@ -3,11 +3,12 @@
 #include <array>
 #include <cstring>
 
-#include "ahtxx.h"
+// ENS160/AHT21 support is disabled.
+// #include "ahtxx.h"
 #include "board_config.hpp"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
-#include "ens160.h"
+// #include "ens160.h"
 #include "esp_check.h"
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
@@ -36,10 +37,12 @@ struct Lps28Context
     bool initialized = false;
 };
 
-i2c_master_bus_handle_t g_i2c_bus = nullptr;
+// ENS160/AHT21 support is disabled.
+// i2c_master_bus_handle_t g_environment_i2c_bus = nullptr;
+i2c_master_bus_handle_t g_barometer_i2c_bus = nullptr;
 Lps28Context g_lps28 = {};
-ahtxx_handle_t g_aht21 = nullptr;
-ens160_handle_t g_ens160 = nullptr;
+// ahtxx_handle_t g_aht21 = nullptr;
+// ens160_handle_t g_ens160 = nullptr;
 
 portMUX_TYPE g_ultra_mux = portMUX_INITIALIZER_UNLOCKED;
 volatile int64_t g_ultra_echo_start_us = 0;
@@ -69,6 +72,24 @@ int32_t lps28_read_reg(void *handle, uint8_t reg, uint8_t *data, uint16_t len)
     }
     auto *device = static_cast<i2c_master_dev_handle_t *>(handle);
     return i2c_master_transmit_receive(*device, &reg, 1, data, len, 100) == ESP_OK ? 0 : -1;
+}
+
+esp_err_t init_i2c_master_bus(i2c_port_num_t port, gpio_num_t sda_gpio, gpio_num_t scl_gpio,
+                              i2c_master_bus_handle_t *out_bus)
+{
+    if (out_bus == nullptr)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    i2c_master_bus_config_t bus_config = {};
+    bus_config.i2c_port = port;
+    bus_config.sda_io_num = sda_gpio;
+    bus_config.scl_io_num = scl_gpio;
+    bus_config.clk_source = I2C_CLK_SRC_DEFAULT;
+    bus_config.glitch_ignore_cnt = 7;
+    bus_config.flags.enable_internal_pullup = 1;
+    return i2c_new_master_bus(&bus_config, out_bus);
 }
 
 void IRAM_ATTR ultrasonic_echo_isr(void *)
@@ -103,16 +124,17 @@ esp_err_t init_global_isr_service()
     return err;
 }
 
-esp_err_t init_i2c_bus()
+// ENS160/AHT21 support is disabled.
+// esp_err_t init_environment_i2c_bus()
+// {
+//     return init_i2c_master_bus(I2C_NUM_0, kBoardConfig.env_i2c_sda_gpio, kBoardConfig.env_i2c_scl_gpio,
+//                                &g_environment_i2c_bus);
+// }
+
+esp_err_t init_barometer_i2c_bus()
 {
-    i2c_master_bus_config_t bus_config = {};
-    bus_config.i2c_port = I2C_NUM_0;
-    bus_config.sda_io_num = kBoardConfig.i2c_sda_gpio;
-    bus_config.scl_io_num = kBoardConfig.i2c_scl_gpio;
-    bus_config.clk_source = I2C_CLK_SRC_DEFAULT;
-    bus_config.glitch_ignore_cnt = 7;
-    bus_config.flags.enable_internal_pullup = 1;
-    return i2c_new_master_bus(&bus_config, &g_i2c_bus);
+    return init_i2c_master_bus(I2C_NUM_1, kBoardConfig.barometer_i2c_sda_gpio,
+                               kBoardConfig.barometer_i2c_scl_gpio, &g_barometer_i2c_bus);
 }
 
 esp_err_t init_ultrasonic()
@@ -139,7 +161,7 @@ esp_err_t init_barometer()
     device_config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
     device_config.device_address = 0x5C;
     device_config.scl_speed_hz = kBoardConfig.i2c_clock_hz;
-    ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(g_i2c_bus, &device_config, &g_lps28.i2c_device), app::kTag,
+    ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(g_barometer_i2c_bus, &device_config, &g_lps28.i2c_device), app::kTag,
                         "lps28 add device failed");
 
     g_lps28.io_ctx.handle = &g_lps28.i2c_device;
@@ -171,16 +193,27 @@ esp_err_t init_barometer()
     return ESP_OK;
 }
 
-esp_err_t init_environment()
-{
-    ahtxx_config_t aht_config = I2C_AHT21_CONFIG_DEFAULT;
-    ESP_RETURN_ON_ERROR(ahtxx_init(g_i2c_bus, &aht_config, &g_aht21), app::kTag, "ahtxx_init failed");
+// ENS160/AHT21 support is disabled.
+// esp_err_t init_environment()
+// {
+//     ahtxx_config_t aht_config = I2C_AHT21_CONFIG_DEFAULT;
+//     ESP_RETURN_ON_ERROR(ahtxx_init(g_environment_i2c_bus, &aht_config, &g_aht21), app::kTag, "ahtxx_init failed");
+//
+//     ens160_config_t ens_config = I2C_ENS160_CONFIG_DEFAULT;
+//     ens_config.i2c_address = static_cast<uint16_t>(kBoardConfig.ens160_i2c_address);
+//     ens_config.i2c_clock_speed = static_cast<uint32_t>(kBoardConfig.i2c_clock_hz);
+//     ESP_RETURN_ON_ERROR(ens160_init(g_environment_i2c_bus, &ens_config, &g_ens160), app::kTag, "ens160_init failed");
+//     return ens160_enable_standard_mode(g_ens160);
+// }
+//
+// i2c_master_bus_handle_t environment_i2c_bus()
+// {
+//     return g_environment_i2c_bus;
+// }
 
-    ens160_config_t ens_config = I2C_ENS160_CONFIG_DEFAULT;
-    ens_config.i2c_address = static_cast<uint16_t>(kBoardConfig.ens160_i2c_address);
-    ens_config.i2c_clock_speed = static_cast<uint32_t>(kBoardConfig.i2c_clock_hz);
-    ESP_RETURN_ON_ERROR(ens160_init(g_i2c_bus, &ens_config, &g_ens160), app::kTag, "ens160_init failed");
-    return ens160_enable_standard_mode(g_ens160);
+i2c_master_bus_handle_t barometer_i2c_bus()
+{
+    return g_barometer_i2c_bus;
 }
 
 void barometer_task(void *)
@@ -221,33 +254,34 @@ void barometer_task(void *)
     }
 }
 
-void env_sensor_task(void *)
-{
-    while (true)
-    {
-        float temperature_c = 0.0f;
-        float humidity_pct = 0.0f;
-        float dewpoint_c = 0.0f;
-        ens160_air_quality_data_t air_quality = {};
-        bool valid = false;
-
-        if (g_aht21 != nullptr && ahtxx_get_measurements(g_aht21, &temperature_c, &humidity_pct, &dewpoint_c) == ESP_OK)
-        {
-            if (g_ens160 != nullptr)
-            {
-                ens160_set_compensation_factors(g_ens160, temperature_c, humidity_pct);
-                if (ens160_get_measurement(g_ens160, &air_quality) == ESP_OK)
-                {
-                    valid = true;
-                }
-            }
-        }
-
-        app::update_environment_snapshot(temperature_c, humidity_pct, dewpoint_c, air_quality.uba_aqi, air_quality.tvoc,
-                                         air_quality.eco2, valid);
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
+// ENS160/AHT21 support is disabled.
+// void env_sensor_task(void *)
+// {
+//     while (true)
+//     {
+//         float temperature_c = 0.0f;
+//         float humidity_pct = 0.0f;
+//         float dewpoint_c = 0.0f;
+//         ens160_air_quality_data_t air_quality = {};
+//         bool valid = false;
+//
+//         if (g_aht21 != nullptr && ahtxx_get_measurements(g_aht21, &temperature_c, &humidity_pct, &dewpoint_c) == ESP_OK)
+//         {
+//             if (g_ens160 != nullptr)
+//             {
+//                 ens160_set_compensation_factors(g_ens160, temperature_c, humidity_pct);
+//                 if (ens160_get_measurement(g_ens160, &air_quality) == ESP_OK)
+//                 {
+//                     valid = true;
+//                 }
+//             }
+//         }
+//
+//         app::update_environment_snapshot(temperature_c, humidity_pct, dewpoint_c, air_quality.uba_aqi, air_quality.tvoc,
+//                                          air_quality.eco2, valid);
+//         vTaskDelay(pdMS_TO_TICKS(1000));
+//     }
+// }
 
 void ultrasonic_task(void *)
 {

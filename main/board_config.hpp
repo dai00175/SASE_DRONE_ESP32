@@ -28,18 +28,22 @@ struct BoardConfig
     uart_port_t bluetooth_uart_port;
     gpio_num_t bluetooth_tx_gpio;
     gpio_num_t bluetooth_rx_gpio;
-    gpio_num_t i2c_sda_gpio;
-    gpio_num_t i2c_scl_gpio;
+    // ENS160/AHT21 support is disabled.
+    // gpio_num_t env_i2c_sda_gpio;
+    // gpio_num_t env_i2c_scl_gpio;
+    gpio_num_t barometer_i2c_sda_gpio;
+    gpio_num_t barometer_i2c_scl_gpio;
     spi_host_device_t bno_spi_host;
     int bluetooth_baud_rate;
     int i2c_clock_hz;
-    int ens160_i2c_address;
+    // int ens160_i2c_address;
     int pwm_frequency_hz;
     int pwm_period_us;
     int pwm_min_us;
     int pwm_max_us;
     int flight_loop_period_us;
     int telemetry_period_ms;
+    int serial_log_period_ms;
     int bluetooth_timeout_ms;
     int ultrasonic_timeout_us;
 };
@@ -55,18 +59,22 @@ inline constexpr BoardConfig kBoardConfig = {
     .bluetooth_uart_port = UART_NUM_1,
     .bluetooth_tx_gpio = GPIO_NUM_41,
     .bluetooth_rx_gpio = GPIO_NUM_40,
-    .i2c_sda_gpio = GPIO_NUM_47,
-    .i2c_scl_gpio = GPIO_NUM_48,
+    // ENS160/AHT21 support is disabled.
+    // .env_i2c_sda_gpio = GPIO_NUM_47,
+    // .env_i2c_scl_gpio = GPIO_NUM_48,
+    .barometer_i2c_sda_gpio = GPIO_NUM_17,
+    .barometer_i2c_scl_gpio = GPIO_NUM_18,
     .bno_spi_host = SPI2_HOST,
     .bluetooth_baud_rate = 38400,
     .i2c_clock_hz = 400000,
-    .ens160_i2c_address = 0x53,
+    // .ens160_i2c_address = 0x53,
     .pwm_frequency_hz = 300,
     .pwm_period_us = 3333,
     .pwm_min_us = 1000,
     .pwm_max_us = 2000,
     .flight_loop_period_us = 3333,
     .telemetry_period_ms = 100,
+    .serial_log_period_ms = 1000,
     .bluetooth_timeout_ms = 500,
     .ultrasonic_timeout_us = 30000,
 };

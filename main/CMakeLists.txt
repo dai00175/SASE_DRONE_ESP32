@@ -26,6 +26,6 @@ idf_component_register(
         esp_driver_uart
         esp_timer
         freertos
-        k0i05__esp_ahtxx
-        k0i05__esp_ens160
+        # k0i05__esp_ahtxx
+        # k0i05__esp_ens160
 )

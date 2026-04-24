@@ -4,7 +4,8 @@
 #include <cstdint>
 
 #include "board_config.hpp"
-#include "ens160.h"
+// ENS160/AHT21 support is disabled.
+// #include "ens160.h"
 
 struct imu_snapshot_t
 {
@@ -40,13 +41,14 @@ struct aux_sensor_snapshot_t
     float ultrasonic_distance_cm = 0.0f;
     bool ultrasonic_valid = false;
 
-    float env_temperature_c = 0.0f;
-    float env_humidity_pct = 0.0f;
-    float env_dewpoint_c = 0.0f;
-    ens160_aqi_uba_indexes_t env_aqi = ENS160_AQI_UBA_INDEX_UNKNOWN;
-    uint16_t env_tvoc_ppb = 0;
-    uint16_t env_eco2_ppm = 0;
-    bool env_valid = false;
+    // ENS160/AHT21 support is disabled.
+    // float env_temperature_c = 0.0f;
+    // float env_humidity_pct = 0.0f;
+    // float env_dewpoint_c = 0.0f;
+    // ens160_aqi_uba_indexes_t env_aqi = ENS160_AQI_UBA_INDEX_UNKNOWN;
+    // uint16_t env_tvoc_ppb = 0;
+    // uint16_t env_eco2_ppm = 0;
+    // bool env_valid = false;
 };
 
 struct flight_runtime_t

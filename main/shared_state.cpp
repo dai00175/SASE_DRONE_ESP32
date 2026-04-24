@@ -185,19 +185,20 @@ void update_ultrasonic_snapshot(float distance_cm, bool valid)
     portEXIT_CRITICAL(&g_aux_mux);
 }
 
-void update_environment_snapshot(float temperature_c, float humidity_pct, float dewpoint_c,
-                                 ens160_aqi_uba_indexes_t aqi, uint16_t tvoc_ppb, uint16_t eco2_ppm, bool valid)
-{
-    portENTER_CRITICAL(&g_aux_mux);
-    g_aux_snapshot.env_temperature_c = temperature_c;
-    g_aux_snapshot.env_humidity_pct = humidity_pct;
-    g_aux_snapshot.env_dewpoint_c = dewpoint_c;
-    g_aux_snapshot.env_aqi = aqi;
-    g_aux_snapshot.env_tvoc_ppb = tvoc_ppb;
-    g_aux_snapshot.env_eco2_ppm = eco2_ppm;
-    g_aux_snapshot.env_valid = valid;
-    portEXIT_CRITICAL(&g_aux_mux);
-}
+// ENS160/AHT21 support is disabled.
+// void update_environment_snapshot(float temperature_c, float humidity_pct, float dewpoint_c,
+//                                  ens160_aqi_uba_indexes_t aqi, uint16_t tvoc_ppb, uint16_t eco2_ppm, bool valid)
+// {
+//     portENTER_CRITICAL(&g_aux_mux);
+//     g_aux_snapshot.env_temperature_c = temperature_c;
+//     g_aux_snapshot.env_humidity_pct = humidity_pct;
+//     g_aux_snapshot.env_dewpoint_c = dewpoint_c;
+//     g_aux_snapshot.env_aqi = aqi;
+//     g_aux_snapshot.env_tvoc_ppb = tvoc_ppb;
+//     g_aux_snapshot.env_eco2_ppm = eco2_ppm;
+//     g_aux_snapshot.env_valid = valid;
+//     portEXIT_CRITICAL(&g_aux_mux);
+// }
 
 void update_imu_euler(float roll_deg, float pitch_deg, float yaw_deg)
 {

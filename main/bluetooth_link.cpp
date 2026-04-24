@@ -149,6 +149,16 @@ void process_command_json(const char *json_message)
     cJSON_Delete(root);
 }
 
+void log_serial_monitor(const telemetry_packet_t &packet)
+{
+    ESP_LOGI(app::kTag,
+             "IMU deg R=%.2f P=%.2f Y=%.2f | PWM us M1=%ld M2=%ld M3=%ld M4=%ld",
+             static_cast<double>(packet.imu.roll_deg), static_cast<double>(packet.imu.pitch_deg),
+             static_cast<double>(packet.imu.yaw_deg), static_cast<long>(packet.runtime.motor_outputs_us[0]),
+             static_cast<long>(packet.runtime.motor_outputs_us[1]), static_cast<long>(packet.runtime.motor_outputs_us[2]),
+             static_cast<long>(packet.runtime.motor_outputs_us[3]));
+}
+
 esp_err_t send_telemetry_json(const telemetry_packet_t &packet)
 {
     cJSON *root = cJSON_CreateObject();
@@ -192,24 +202,27 @@ esp_err_t send_telemetry_json(const telemetry_packet_t &packet)
     cJSON_AddNumberToObject(loop, "avg_us", packet.runtime.avg_loop_period_us);
     cJSON_AddNumberToObject(loop, "count", packet.runtime.loop_count);
 
-    cJSON *barometer = cJSON_AddObjectToObject(root, "barometer");
-    cJSON_AddBoolToObject(barometer, "valid", packet.aux.barometer_valid);
-    cJSON_AddNumberToObject(barometer, "pressure_hpa", packet.aux.barometer_pressure_hpa);
-    cJSON_AddNumberToObject(barometer, "altitude_m", packet.aux.barometer_altitude_m);
-    cJSON_AddNumberToObject(barometer, "temperature_c", packet.aux.barometer_temperature_c);
+    // Barometer support is disabled.
+    // cJSON *barometer = cJSON_AddObjectToObject(root, "barometer");
+    // cJSON_AddBoolToObject(barometer, "valid", packet.aux.barometer_valid);
+    // cJSON_AddNumberToObject(barometer, "pressure_hpa", packet.aux.barometer_pressure_hpa);
+    // cJSON_AddNumberToObject(barometer, "altitude_m", packet.aux.barometer_altitude_m);
+    // cJSON_AddNumberToObject(barometer, "temperature_c", packet.aux.barometer_temperature_c);
 
-    cJSON *ultrasonic = cJSON_AddObjectToObject(root, "ultrasonic");
-    cJSON_AddBoolToObject(ultrasonic, "valid", packet.aux.ultrasonic_valid);
-    cJSON_AddNumberToObject(ultrasonic, "distance_cm", packet.aux.ultrasonic_distance_cm);
+    // Ultrasonic support is disabled.
+    // cJSON *ultrasonic = cJSON_AddObjectToObject(root, "ultrasonic");
+    // cJSON_AddBoolToObject(ultrasonic, "valid", packet.aux.ultrasonic_valid);
+    // cJSON_AddNumberToObject(ultrasonic, "distance_cm", packet.aux.ultrasonic_distance_cm);
 
-    cJSON *environment = cJSON_AddObjectToObject(root, "environment");
-    cJSON_AddBoolToObject(environment, "valid", packet.aux.env_valid);
-    cJSON_AddNumberToObject(environment, "temperature_c", packet.aux.env_temperature_c);
-    cJSON_AddNumberToObject(environment, "humidity_pct", packet.aux.env_humidity_pct);
-    cJSON_AddNumberToObject(environment, "dewpoint_c", packet.aux.env_dewpoint_c);
-    cJSON_AddNumberToObject(environment, "aqi_uba", packet.aux.env_aqi);
-    cJSON_AddNumberToObject(environment, "tvoc_ppb", packet.aux.env_tvoc_ppb);
-    cJSON_AddNumberToObject(environment, "eco2_ppm", packet.aux.env_eco2_ppm);
+    // ENS160/AHT21 support is disabled.
+    // cJSON *environment = cJSON_AddObjectToObject(root, "environment");
+    // cJSON_AddBoolToObject(environment, "valid", packet.aux.env_valid);
+    // cJSON_AddNumberToObject(environment, "temperature_c", packet.aux.env_temperature_c);
+    // cJSON_AddNumberToObject(environment, "humidity_pct", packet.aux.env_humidity_pct);
+    // cJSON_AddNumberToObject(environment, "dewpoint_c", packet.aux.env_dewpoint_c);
+    // cJSON_AddNumberToObject(environment, "aqi_uba", packet.aux.env_aqi);
+    // cJSON_AddNumberToObject(environment, "tvoc_ppb", packet.aux.env_tvoc_ppb);
+    // cJSON_AddNumberToObject(environment, "eco2_ppm", packet.aux.env_eco2_ppm);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -309,9 +322,18 @@ void bluetooth_task(void *)
 
 void telemetry_task(void *)
 {
+    int64_t last_log_us = 0;
+
     while (true)
     {
         const telemetry_packet_t packet = app::build_telemetry_packet();
+        const int64_t now_us = esp_timer_get_time();
+        if ((now_us - last_log_us) >= (static_cast<int64_t>(kBoardConfig.serial_log_period_ms) * 1000))
+        {
+            log_serial_monitor(packet);
+            last_log_us = now_us;
+        }
+
         if (app::telemetry_queue() != nullptr)
         {
             xQueueOverwrite(app::telemetry_queue(), &packet);

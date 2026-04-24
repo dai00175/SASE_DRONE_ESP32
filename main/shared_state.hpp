@@ -52,8 +52,9 @@ control_setpoint_t snapshot_control_setpoint();
 void update_barometer_snapshot(float pressure_hpa, float temperature_c);
 void invalidate_barometer_snapshot();
 void update_ultrasonic_snapshot(float distance_cm, bool valid);
-void update_environment_snapshot(float temperature_c, float humidity_pct, float dewpoint_c,
-                                 ens160_aqi_uba_indexes_t aqi, uint16_t tvoc_ppb, uint16_t eco2_ppm, bool valid);
+// ENS160/AHT21 support is disabled.
+// void update_environment_snapshot(float temperature_c, float humidity_pct, float dewpoint_c,
+//                                  ens160_aqi_uba_indexes_t aqi, uint16_t tvoc_ppb, uint16_t eco2_ppm, bool valid);
 
 void update_imu_euler(float roll_deg, float pitch_deg, float yaw_deg);
 void update_imu_gyro(float gyro_x_dps, float gyro_y_dps, float gyro_z_dps);
