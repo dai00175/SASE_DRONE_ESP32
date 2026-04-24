@@ -149,6 +149,36 @@ void process_command_json(const char *json_message)
     cJSON_Delete(root);
 }
 
+void log_bluetooth_connection_established()
+{
+    ESP_LOGI(app::kTag, "Bluetooth connection established");
+}
+
+void log_bluetooth_connection_lost(int64_t idle_ms)
+{
+    ESP_LOGW(app::kTag, "Bluetooth connection lost after %lld ms without RX",
+             static_cast<long long>(idle_ms));
+}
+
+void log_received_packet(const char *packet)
+{
+    if (packet == nullptr || packet[0] == '\0')
+    {
+        return;
+    }
+
+    ESP_LOGI(app::kTag, "Bluetooth RX packet: %s", packet);
+}
+
+void log_bluetooth_task_heartbeat(bool connected, size_t buffered_chars, uint32_t rx_bytes, uint32_t rx_packets,
+                                  uint32_t tx_packets, int64_t last_rx_age_ms)
+{
+    ESP_LOGI(app::kTag,
+             "Bluetooth task heartbeat: connected=%s buffered=%u rx_bytes=%u rx_packets=%u tx_packets=%u last_rx_age_ms=%lld",
+             connected ? "yes" : "no", static_cast<unsigned>(buffered_chars), static_cast<unsigned>(rx_bytes),
+             static_cast<unsigned>(rx_packets), static_cast<unsigned>(tx_packets), static_cast<long long>(last_rx_age_ms));
+}
+
 void log_serial_monitor(const telemetry_packet_t &packet)
 {
     ESP_LOGI(app::kTag,
@@ -260,6 +290,9 @@ esp_err_t init()
     ESP_RETURN_ON_ERROR(uart_set_pin(kBoardConfig.bluetooth_uart_port, kBoardConfig.bluetooth_tx_gpio,
                                      kBoardConfig.bluetooth_rx_gpio, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE),
                         app::kTag, "uart_set_pin failed");
+    ESP_LOGI(app::kTag, "Bluetooth UART ready on UART%d TX=%d RX=%d baud=%d", static_cast<int>(kBoardConfig.bluetooth_uart_port),
+             static_cast<int>(kBoardConfig.bluetooth_tx_gpio), static_cast<int>(kBoardConfig.bluetooth_rx_gpio),
+             kBoardConfig.bluetooth_baud_rate);
     app::set_bluetooth_connected(false);
     return ESP_OK;
 }
@@ -269,6 +302,12 @@ void bluetooth_task(void *)
     std::array<char, app::kBluetoothLineBufferSize> line_buffer = {};
     size_t line_length = 0;
     telemetry_packet_t packet = {};
+    int64_t last_heartbeat_us = esp_timer_get_time();
+    uint32_t rx_bytes_since_heartbeat = 0;
+    uint32_t rx_packets_since_heartbeat = 0;
+    uint32_t tx_packets_since_heartbeat = 0;
+
+    ESP_LOGI(app::kTag, "Bluetooth task started");
 
     while (true)
     {
@@ -276,6 +315,11 @@ void bluetooth_task(void *)
         const int bytes_read = uart_read_bytes(kBoardConfig.bluetooth_uart_port, &byte, 1, pdMS_TO_TICKS(20));
         if (bytes_read > 0)
         {
+            rx_bytes_since_heartbeat += static_cast<uint32_t>(bytes_read);
+            if (!app::is_bluetooth_connected())
+            {
+                log_bluetooth_connection_established();
+            }
             app::note_bluetooth_rx();
             if (byte == '\r')
             {
@@ -286,6 +330,8 @@ void bluetooth_task(void *)
                 line_buffer[line_length] = '\0';
                 if (line_length > 0)
                 {
+                    rx_packets_since_heartbeat++;
+                    log_received_packet(line_buffer.data());
                     process_command_json(line_buffer.data());
                 }
                 line_length = 0;
@@ -297,6 +343,8 @@ void bluetooth_task(void *)
             }
             else
             {
+                ESP_LOGW(app::kTag, "Bluetooth RX line exceeded %u bytes, dropping packet",
+                         static_cast<unsigned>(line_buffer.size() - 1U));
                 line_length = 0;
             }
         }
@@ -308,14 +356,32 @@ void bluetooth_task(void *)
             {
                 ESP_LOGW(app::kTag, "Telemetry send failed: %s", esp_err_to_name(err));
             }
+            else
+            {
+                tx_packets_since_heartbeat++;
+            }
         }
 
         const int64_t now_us = esp_timer_get_time();
-        if (app::get_last_bluetooth_rx_us() != 0 &&
-            (now_us - app::get_last_bluetooth_rx_us()) >
-                (static_cast<int64_t>(kBoardConfig.bluetooth_timeout_ms) * 1000))
+        const int64_t last_rx_us = app::get_last_bluetooth_rx_us();
+        const int64_t timeout_us = static_cast<int64_t>(kBoardConfig.bluetooth_timeout_ms) * 1000;
+        if (app::is_bluetooth_connected() && last_rx_us != 0 && (now_us - last_rx_us) > timeout_us)
         {
             app::set_bluetooth_connected(false);
+            log_bluetooth_connection_lost((now_us - last_rx_us) / 1000);
+        }
+
+        if ((now_us - last_heartbeat_us) >= 1000000LL)
+        {
+            const int64_t refreshed_last_rx_us = app::get_last_bluetooth_rx_us();
+            const int64_t last_rx_age_ms =
+                refreshed_last_rx_us == 0 ? -1LL : (now_us - refreshed_last_rx_us) / 1000LL;
+            log_bluetooth_task_heartbeat(app::is_bluetooth_connected(), line_length, rx_bytes_since_heartbeat,
+                                         rx_packets_since_heartbeat, tx_packets_since_heartbeat, last_rx_age_ms);
+            rx_bytes_since_heartbeat = 0;
+            rx_packets_since_heartbeat = 0;
+            tx_packets_since_heartbeat = 0;
+            last_heartbeat_us = now_us;
         }
     }
 }

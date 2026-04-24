@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Control Panel</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --primary: #bb86fc;
+            --on-primary: #000000;
+            --text: #ffffff;
+            --text-secondary: #aaaaaa;
+            --danger: #cf6679;
+        }
+
+        body {
+            margin: 0;
+            padding: 2rem;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .app-shell {
+            position: relative;
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            justify-content: center;
+            padding-top: 2rem;
+        }
+
+        .control-layout {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            width: 100%;
+        }
+
+        .container {
+            background-color: var(--surface-color);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        h1 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            font-size: 1.5rem;
+        }
+        
+        p {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+
+        .d-pad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 10px;
+            margin-bottom: 2rem;
+            justify-items: center;
+        }
+
+        .btn {
+            background-color: #333333;
+            color: var(--text);
+            border: none;
+            border-radius: 12px;
+            padding: 15px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            width: 100%;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+            background-color: var(--primary);
+            color: var(--on-primary);
+        }
+
+        .btn.empty {
+            visibility: hidden;
+        }
+
+        .btn-up { grid-column: 2; grid-row: 1; }
+        .btn-left { grid-column: 1; grid-row: 2; }
+        .btn-down { grid-column: 2; grid-row: 2; }
+        .btn-right { grid-column: 3; grid-row: 2; }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .actions .btn {
+            background-color: var(--primary);
+            color: var(--on-primary);
+            font-weight: bold;
+        }
+
+        .actions .btn-land {
+            background-color: var(--danger);
+            color: #ffffff;
+        }
+
+        .status {
+            margin-top: 1.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            min-height: 20px;
+        }
+
+        .throttle-panel {
+            background-color: #333333;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+            width: 112px;
+            z-index: 10;
+            flex: 0 0 auto;
+        }
+
+        .throttle-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            display: block;
+            text-align: center;
+        }
+
+        .throttle-label strong {
+            color: var(--primary);
+        }
+
+        .throttle-controls {
+            margin-top: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .throttle-arrow {
+            width: 72px;
+            height: 48px;
+            font-size: 1.3rem;
+            font-weight: bold;
+        }
+
+        .throttle-scale {
+            width: 36px;
+        }
+
+        .throttle-ticks {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 6px;
+            pointer-events: none;
+        }
+
+        .throttle-tick {
+            width: 100%;
+            height: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.08);
+            box-sizing: border-box;
+        }
+
+        .throttle-tick.active {
+            background: #39d353;
+            border-color: #6ee787;
+            box-shadow: 0 0 8px rgba(57, 211, 83, 0.85);
+        }
+
+        @media (min-width: 800px) {
+            .programs-panel {
+                position: absolute;
+                left: 0;
+                top: 2rem;
+                margin: 0;
+            }
+        }
+
+        @media (max-width: 799px) {
+            .app-shell {
+                padding-top: 0;
+            }
+
+            .control-layout {
+                flex-direction: column;
+            }
+
+            .programs-panel {
+                position: static;
+                margin-bottom: 1.5rem;
+            }
+        }
+
+        @media (max-width: 979px) {
+            .throttle-panel {
+                width: 96px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <div class="container programs-panel" style="max-width: 300px;">
+            <h2 style="margin-top: 0; margin-bottom: 0.5rem; font-size: 1.5rem;">Programs</h2>
+            <p>Automated flight sequences</p>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <button class="btn" style="background-color: #03dac6; color: #000;" onclick="flySquare()">Square (5s)</button>
+            </div>
+        </div>
+
+        <div class="control-layout">
+            <div class="container">
+                <h1>Drone Flight Control</h1>
+                <p>Send commands to HC-05 via Bluetooth</p>
+
+                <div class="d-pad">
+                    <div class="btn empty"></div>
+                    <button class="btn btn-up" onpointerdown="sendCommand('forward', 2.0)" onpointerup="sendCommand('stop_pitch', 0.0)" onpointerleave="sendCommand('stop_pitch', 0.0)">W</button>
+                    <div class="btn empty"></div>
+                    <button class="btn btn-left" onpointerdown="sendCommand('left', 2.0)" onpointerup="sendCommand('stop_roll', 0.0)" onpointerleave="sendCommand('stop_roll', 0.0)">A</button>
+                    <button class="btn btn-down" onpointerdown="sendCommand('backward', 2.0)" onpointerup="sendCommand('stop_pitch', 0.0)" onpointerleave="sendCommand('stop_pitch', 0.0)">S</button>
+                    <button class="btn btn-right" onpointerdown="sendCommand('right', 2.0)" onpointerup="sendCommand('stop_roll', 0.0)" onpointerleave="sendCommand('stop_roll', 0.0)">D</button>
+                </div>
+
+                <div class="actions">
+                    <button class="btn" onclick="sendCommand('takeoff', 5.0)">Takeoff</button>
+                    <button class="btn btn-land" onclick="sendCommand('land', 0.0)">Land</button>
+                </div>
+
+                <div class="status" id="status-msg">Idle.</div>
+            </div>
+
+            <div class="throttle-panel">
+                <label class="throttle-label" for="throttle">Throttle (0-1000): <strong id="throttle-val">0</strong></label>
+                <div class="throttle-controls">
+                    <button class="btn throttle-arrow" type="button" onclick="adjustThrottle(50)">&#9650;</button>
+                    <div class="throttle-scale">
+                        <input type="hidden" id="throttle" name="throttle" value="0">
+                        <div class="throttle-ticks" id="throttle-ticks" aria-hidden="true"></div>
+                    </div>
+                    <button class="btn throttle-arrow" type="button" onclick="adjustThrottle(-50)">&#9660;</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const THROTTLE_MIN = 0;
+        const THROTTLE_MAX = 1000;
+        const THROTTLE_STEP = 50;
+
+        function clampThrottle(value) {
+            const numericValue = Number(value);
+            if (!Number.isFinite(numericValue)) {
+                return THROTTLE_MIN;
+            }
+
+            return Math.min(
+                THROTTLE_MAX,
+                Math.max(THROTTLE_MIN, Math.round(numericValue / THROTTLE_STEP) * THROTTLE_STEP)
+            );
+        }
+
+        function updateThrottleUI(value) {
+            const clampedValue = clampThrottle(value);
+            const throttleInput = document.getElementById('throttle');
+            const throttleValue = document.getElementById('throttle-val');
+
+            if (throttleInput) {
+                throttleInput.value = clampedValue;
+            }
+
+            if (throttleValue) {
+                throttleValue.textContent = clampedValue;
+            }
+
+            document.querySelectorAll('#throttle-ticks .throttle-tick').forEach((tick, index, ticks) => {
+                const tickValue = (ticks.length - 1 - index) * THROTTLE_STEP;
+                tick.classList.toggle('active', tickValue <= clampedValue);
+            });
+
+            return clampedValue;
+        }
+
+        async function setThrottle(value) {
+            const clampedValue = updateThrottleUI(value);
+            await sendCommand('throttle', clampedValue);
+        }
+
+        function adjustThrottle(delta) {
+            const throttleInput = document.getElementById('throttle');
+            const currentValue = throttleInput ? Number(throttleInput.value) : THROTTLE_MIN;
+            setThrottle(currentValue + delta);
+        }
+
+        function renderThrottleTicks() {
+            const throttleTicks = document.getElementById('throttle-ticks');
+            if (!throttleTicks) {
+                return;
+            }
+
+            throttleTicks.innerHTML = '';
+            for (let value = THROTTLE_MAX; value >= THROTTLE_MIN; value -= THROTTLE_STEP) {
+                const tick = document.createElement('div');
+                tick.className = 'throttle-tick';
+                throttleTicks.appendChild(tick);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderThrottleTicks();
+            updateThrottleUI(THROTTLE_MIN);
+        });
+
+        // Poll for drone status every second
+        setInterval(async () => {
+            try {
+                const response = await fetch('/api/status');
+                if (response.ok) {
+                    const data = await response.json();
+                    const statusEl = document.getElementById('status-msg');
+                    
+                    // Format the telemetry data into a readable string
+                    let uiString = `Drone: ${data.status || 'Idle'}`;
+                    if (data.target_pitch !== undefined) uiString += ` | Cmd Pitch: ${data.target_pitch}°`;
+                    if (data.target_roll !== undefined) uiString += ` | Cmd Roll: ${data.target_roll}°`;
+                    if (data.pitch !== undefined) uiString += ` | True Pitch: ${parseFloat(data.pitch).toFixed(1)}°`;
+                    if (data.battery) uiString += ` | Battery: ${data.battery}%`;
+                    if (data.altitude) uiString += ` | Alt: ${data.altitude}m`;
+                    if (data.last_message) uiString += ` | Msg: ${data.last_message}`;
+                    
+                    // Revert to displaying telemetry after 3 seconds of showing success/error messages
+                    if (statusEl.getAttribute('data-temp-msg') !== "true") {
+                        statusEl.textContent = uiString;
+                        statusEl.style.color = "var(--text-secondary)";
+                    }
+                }
+            } catch (err) { }
+        }, 1000);
+
+        async function sendCommand(action, value) {
+            const statusEl = document.getElementById('status-msg');
+            statusEl.textContent = `Sending ${action}...`;
+            statusEl.style.color = "var(--text-secondary)";
+            statusEl.setAttribute('data-temp-msg', "true");
+            
+            try {
+                const response = await fetch('/api/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, value })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    statusEl.textContent = `Success: ${result.message}`;
+                    statusEl.style.color = "var(--primary)";
+                } else {
+                    statusEl.textContent = `Error: ${result.message}`;
+                    statusEl.style.color = "var(--danger)";
+                }
+            } catch (error) {
+                statusEl.textContent = 'Server not reachable.';
+                statusEl.style.color = "var(--danger)";
+            }
+
+            // Remove the temp message lock after a few seconds so polling resumes
+            setTimeout(() => { statusEl.setAttribute('data-temp-msg', "false"); }, 3000);
+        }
+
+        async function flySquare() {
+            const sideDuration = 1250; // 1.25 seconds per side
+
+            // Forward
+            await sendCommand('forward', 2.0);
+            await new Promise(r => setTimeout(r, sideDuration));
+            await sendCommand('stop_pitch', 0.0);
+
+            // Right
+            await sendCommand('right', 2.0);
+            await new Promise(r => setTimeout(r, sideDuration));
+            await sendCommand('stop_roll', 0.0);
+
+            // Backward
+            await sendCommand('backward', 2.0);
+            await new Promise(r => setTimeout(r, sideDuration));
+            await sendCommand('stop_pitch', 0.0);
+
+            // Left
+            await sendCommand('left', 2.0);
+            await new Promise(r => setTimeout(r, sideDuration));
+            await sendCommand('stop_roll', 0.0);
+        }
+
+        // Map WASD keys to drone movement
+        document.addEventListener('keydown', (event) => {
+            if (event.repeat) return; // Prevent spamming if key is held down
+            switch (event.key.toLowerCase()) {
+                case 'w': sendCommand('forward', 2.0); break;
+                case 'a': sendCommand('left', 2.0); break;
+                case 's': sendCommand('backward', 2.0); break;
+                case 'd': sendCommand('right', 2.0); break;
+            }
+        });
+
+        // Auto-level pitch/roll back to 0 the moment the user steps off the designated key
+        document.addEventListener('keyup', (event) => {
+            switch (event.key.toLowerCase()) {
+                case 'w': 
+                case 's': 
+                    sendCommand('stop_pitch', 0.0); break;
+                case 'a': 
+                case 'd': 
+                    sendCommand('stop_roll', 0.0); break;
+            }
+        });
+    </script>
+</body>
+</html>
