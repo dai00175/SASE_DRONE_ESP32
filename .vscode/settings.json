@@ -13,6 +13,6 @@
     "--query-driver=**",
     "--compile-commands-dir=${workspaceFolder}\\build"
   ],
-  "idf.portWin": "COM3",
+  "idf.portWin": "COM16",
   "idf.flashType": "UART"
 }

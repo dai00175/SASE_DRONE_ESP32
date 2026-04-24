@@ -127,7 +127,7 @@ esp_err_t init()
 {
     bno08x_config_t config(kBoardConfig.bno_spi_host, kBoardConfig.bno_spi_gpios[0], kBoardConfig.bno_spi_gpios[1],
                            kBoardConfig.bno_spi_gpios[2], kBoardConfig.bno_cs_gpio, kBoardConfig.bno_int_gpio,
-                           kBoardConfig.bno_rst_gpio, 2000000U, false);
+                           kBoardConfig.bno_rst_gpio, 3000000U, false);
 
     g_imu = std::make_unique<BNO08x>(config);
     ESP_RETURN_ON_FALSE(g_imu != nullptr, ESP_ERR_NO_MEM, app::kTag, "BNO08x allocation failed");
