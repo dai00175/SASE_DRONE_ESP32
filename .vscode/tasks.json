@@ -1,0 +1,89 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ESP-IDF: Build (build_win)",
+      "type": "process",
+      "command": "C:\\Espressif\\tools\\python\\v5.5.4\\venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\esp\\v5.5.4\\esp-idf\\tools\\idf.py",
+        "-B",
+        "${config:idf.buildPath}",
+        "build"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "IDF_PATH": "C:\\esp\\v5.5.4\\esp-idf"
+        }
+      },
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "ESP-IDF: Flash (${config:idf.portWin})",
+      "type": "process",
+      "command": "C:\\Espressif\\tools\\python\\v5.5.4\\venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\esp\\v5.5.4\\esp-idf\\tools\\idf.py",
+        "-B",
+        "${config:idf.buildPath}",
+        "-p",
+        "${config:idf.portWin}",
+        "flash"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "IDF_PATH": "C:\\esp\\v5.5.4\\esp-idf"
+        }
+      },
+      "dependsOn": [
+        "ESP-IDF: Build (build_win)"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "ESP-IDF: Monitor (${config:idf.portWin})",
+      "type": "process",
+      "command": "C:\\Espressif\\tools\\python\\v5.5.4\\venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\esp\\v5.5.4\\esp-idf\\tools\\idf.py",
+        "-B",
+        "${config:idf.buildPath}",
+        "-p",
+        "${config:idf.portWin}",
+        "monitor"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "IDF_PATH": "C:\\esp\\v5.5.4\\esp-idf"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "ESP-IDF: Full Clean (build_win)",
+      "type": "process",
+      "command": "C:\\Espressif\\tools\\python\\v5.5.4\\venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\esp\\v5.5.4\\esp-idf\\tools\\idf.py",
+        "-B",
+        "${config:idf.buildPath}",
+        "fullclean"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "IDF_PATH": "C:\\esp\\v5.5.4\\esp-idf"
+        }
+      },
+      "problemMatcher": []
+    }
+  ]
+}
+
