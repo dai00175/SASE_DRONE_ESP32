@@ -19,6 +19,8 @@ namespace bluetooth
 namespace
 {
 
+constexpr int64_t kPartialLineTimeoutUs = 2000000LL;
+
 bool try_get_number(const cJSON *object, const char *name, double *value)
 {
     if (object == nullptr || name == nullptr || value == nullptr)
@@ -103,6 +105,17 @@ bool ascii_equals_ignore_case(const char *lhs, const char *rhs)
     return *lhs == '\0' && *rhs == '\0';
 }
 
+bool is_valid_command_start(uint8_t byte)
+{
+    return byte == '{' || byte == '[' || std::isalpha(static_cast<unsigned char>(byte)) != 0 ||
+           std::isspace(static_cast<unsigned char>(byte)) != 0;
+}
+
+bool is_command_line_byte(uint8_t byte)
+{
+    return byte == '\t' || byte == ' ' || (byte >= 0x20 && byte <= 0x7E);
+}
+
 CommandAction parse_action(const char *action)
 {
     if (action == nullptr)
@@ -178,6 +191,18 @@ void enqueue_command(const command_message_t &command)
     }
 
     log_enqueued_command(command);
+}
+
+void enqueue_land_failsafe(const char *reason)
+{
+    if (reason != nullptr && reason[0] != '\0')
+    {
+        ESP_LOGW(app::kTag, "Enqueuing LAND failsafe: %s", reason);
+    }
+
+    command_message_t command = {};
+    command.action = CommandAction::LAND;
+    enqueue_command(command);
 }
 
 bool process_command_json(const char *json_message)
@@ -353,8 +378,16 @@ void log_bluetooth_task_heartbeat(bool connected, size_t buffered_chars, uint32_
 
 void log_serial_monitor(const telemetry_packet_t &packet)
 {
+    const int64_t last_rx_us = app::get_last_bluetooth_rx_us();
+    const int64_t now_us = esp_timer_get_time();
+    const int64_t last_rx_age_ms = last_rx_us == 0 ? -1LL : (now_us - last_rx_us) / 1000LL;
+
     ESP_LOGI(app::kTag,
-             "IMU deg R=%.2f P=%.2f Y=%.2f | PWM us M1=%ld M2=%ld M3=%ld M4=%ld",
+             "State=%s mission=%d BT=%s last_rx_age_ms=%lld | Setpoint thr=%d roll=%.2f pitch=%.2f yaw=%.2f | IMU deg R=%.2f P=%.2f Y=%.2f | PWM us M1=%ld M2=%ld M3=%ld M4=%ld",
+             app::drone_state_to_string(packet.control.state), packet.control.mission_id,
+             packet.bluetooth_connected ? "yes" : "no", static_cast<long long>(last_rx_age_ms),
+             packet.control.throttle_us, static_cast<double>(packet.control.roll_deg),
+             static_cast<double>(packet.control.pitch_deg), static_cast<double>(packet.control.yaw_deg),
              static_cast<double>(packet.imu.roll_deg), static_cast<double>(packet.imu.pitch_deg),
              static_cast<double>(packet.imu.yaw_deg), static_cast<long>(packet.runtime.motor_outputs_us[0]),
              static_cast<long>(packet.runtime.motor_outputs_us[1]), static_cast<long>(packet.runtime.motor_outputs_us[2]),
@@ -473,6 +506,8 @@ void bluetooth_task(void *)
 {
     std::array<char, app::kBluetoothLineBufferSize> line_buffer = {};
     size_t line_length = 0;
+    bool discarding_line = false;
+    int64_t last_line_byte_us = 0;
     telemetry_packet_t packet = {};
     int64_t last_heartbeat_us = esp_timer_get_time();
     uint32_t rx_bytes_since_heartbeat = 0;
@@ -497,16 +532,50 @@ void bluetooth_task(void *)
             {
                 continue;
             }
+            const int64_t byte_time_us = esp_timer_get_time();
+            if (line_length > 0 && last_line_byte_us != 0 && (byte_time_us - last_line_byte_us) > kPartialLineTimeoutUs)
+            {
+                ESP_LOGW(app::kTag, "Bluetooth RX partial line timed out after %lld ms, dropping %u buffered bytes",
+                         static_cast<long long>((byte_time_us - last_line_byte_us) / 1000LL),
+                         static_cast<unsigned>(line_length));
+                line_length = 0;
+                discarding_line = false;
+            }
+            last_line_byte_us = byte_time_us;
             if (byte == '\n')
             {
-                line_buffer[line_length] = '\0';
-                if (line_length > 0)
+                if (!discarding_line)
                 {
-                    rx_packets_since_heartbeat++;
-                    log_received_packet(line_buffer.data());
-                    process_command_message(line_buffer.data());
+                    line_buffer[line_length] = '\0';
+                    if (line_length > 0)
+                    {
+                        rx_packets_since_heartbeat++;
+                        log_received_packet(line_buffer.data());
+                        process_command_message(line_buffer.data());
+                    }
                 }
                 line_length = 0;
+                discarding_line = false;
+                last_line_byte_us = 0;
+                continue;
+            }
+            if (discarding_line)
+            {
+                continue;
+            }
+            if (line_length == 0 && !is_valid_command_start(byte))
+            {
+                ESP_LOGW(app::kTag, "Bluetooth RX discarded junk byte before command: 0x%02X",
+                         static_cast<unsigned>(byte));
+                discarding_line = true;
+                continue;
+            }
+            if (!is_command_line_byte(byte))
+            {
+                ESP_LOGW(app::kTag, "Bluetooth RX discarded line with non-ASCII byte: 0x%02X",
+                         static_cast<unsigned>(byte));
+                line_length = 0;
+                discarding_line = true;
                 continue;
             }
             if (line_length + 1U < line_buffer.size())
@@ -518,6 +587,7 @@ void bluetooth_task(void *)
                 ESP_LOGW(app::kTag, "Bluetooth RX line exceeded %u bytes, dropping packet",
                          static_cast<unsigned>(line_buffer.size() - 1U));
                 line_length = 0;
+                discarding_line = true;
             }
         }
 
@@ -539,6 +609,7 @@ void bluetooth_task(void *)
         const int64_t timeout_us = static_cast<int64_t>(kBoardConfig.bluetooth_timeout_ms) * 1000;
         if (app::is_bluetooth_connected() && last_rx_us != 0 && (now_us - last_rx_us) > timeout_us)
         {
+            enqueue_land_failsafe("Bluetooth RX timeout");
             app::set_bluetooth_connected(false);
             log_bluetooth_connection_lost((now_us - last_rx_us) / 1000);
         }

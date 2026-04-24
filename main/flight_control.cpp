@@ -18,6 +18,25 @@ namespace
 
 gptimer_handle_t g_flight_timer = nullptr;
 
+std::array<int32_t, 4> motors_off_outputs()
+{
+    return {
+        kBoardConfig.pwm_min_us,
+        kBoardConfig.pwm_min_us,
+        kBoardConfig.pwm_min_us,
+        kBoardConfig.pwm_min_us,
+    };
+}
+
+void apply_idle_setpoint(control_setpoint_t &setpoint)
+{
+    setpoint.state = DroneState::IDLE;
+    setpoint.throttle_us = kBoardConfig.pwm_min_us;
+    setpoint.roll_deg = 0.0f;
+    setpoint.pitch_deg = 0.0f;
+    setpoint.yaw_deg = 0.0f;
+}
+
 bool IRAM_ATTR flight_timer_alarm_cb(gptimer_handle_t, const gptimer_alarm_event_data_t *, void *user_ctx)
 {
     BaseType_t task_woken = pdFALSE;
@@ -39,7 +58,7 @@ void process_command(const command_message_t &command)
         setpoint.state = DroneState::TAKEOFF;
         break;
     case CommandAction::LAND:
-        setpoint.state = DroneState::LANDING;
+        apply_idle_setpoint(setpoint);
         break;
     case CommandAction::CANCEL:
         setpoint.state = DroneState::USERCNTRL;
@@ -74,7 +93,8 @@ void process_command(const command_message_t &command)
 
     if (setpoint.state == DroneState::IDLE)
     {
-        setpoint.throttle_us = kBoardConfig.pwm_min_us;
+        apply_idle_setpoint(setpoint);
+        pid::reset();
     }
 
     setpoint.command_timestamp_us = esp_timer_get_time();
@@ -100,21 +120,15 @@ void flight_task(void *)
         control_setpoint_t setpoint = app::snapshot_control_setpoint();
         if (setpoint.state == DroneState::IDLE)
         {
-            setpoint.throttle_us = kBoardConfig.pwm_min_us;
+            apply_idle_setpoint(setpoint);
+            pid::reset();
+            motors::apply_outputs(motors_off_outputs());
+            app::update_loop_runtime(loop_period_us, 0.0f, 0.0f, 0.0f);
+            continue;
         }
 
         const pid::Output pid_output = pid::compute(setpoint, imu_snapshot, dt);
         std::array<int32_t, 4> motor_outputs = pid::mix_outputs(setpoint.throttle_us, pid_output);
-
-        if (setpoint.state == DroneState::IDLE)
-        {
-            motor_outputs = {
-                kBoardConfig.pwm_min_us,
-                kBoardConfig.pwm_min_us,
-                kBoardConfig.pwm_min_us,
-                kBoardConfig.pwm_min_us,
-            };
-        }
 
         motors::apply_outputs(motor_outputs);
         app::update_loop_runtime(loop_period_us, pid_output.roll, pid_output.pitch, pid_output.yaw);

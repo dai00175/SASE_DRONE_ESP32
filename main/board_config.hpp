@@ -73,8 +73,8 @@ inline constexpr BoardConfig kBoardConfig = {
     .pwm_min_us = 1000,
     .pwm_max_us = 2000,
     .flight_loop_period_us = 3333,
-    .telemetry_period_ms = 100,
-    .serial_log_period_ms = 1000,
-    .bluetooth_timeout_ms = 5000,
+    .telemetry_period_ms = 500,
+    .serial_log_period_ms = 3000,
+    .bluetooth_timeout_ms = 20000,
     .ultrasonic_timeout_us = 30000,
 };
